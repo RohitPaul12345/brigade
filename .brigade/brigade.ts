@@ -33,46 +33,43 @@ class MakeTargetJob extends JobWithSource {
   }
 }
 
-// BuildImageJob is a specialized job type for building and pushing multiarch
-// Docker images.
-//
-// Note: This isn't the optimal way to do this. It's a workaround. These notes
-// are here so that as the situation improves, we can improve our approach.
-//
-// The optimal way of doing this would involve no sidecars and wouldn't closely
-// resemble the "DinD" (Docker in Docker) pattern that we are accustomed to.
-//
-// `docker buildx build` has full support for building images using remote
-// BuildKit instances. Such instances can use qemu to emulate other CPU
-// architectures. This permits us to build images for arm64 (aka arm64/v8, aka
-// aarch64), even though, as of this writing, we only have access to amd64 VMs.
-//
-// In an ideal world, we'd have a pool of BuildKit instances up and running at
-// all times in our cluster and we'd somehow JOIN it and be off to the races.
-// Alas, as of this writing, this isn't supported yet. (BuildKit supports it,
-// but the `docker buildx` family of commands does not.) The best we can do is
-// use `docker buildx create` to create a brand new builder.
-//
-// Tempting as it is to create a new builder using the Kubernetes driver (i.e.
-// `docker buildx create --driver kubernetes`), this comes with two problems:
-// 
-// 1. It would require giving our jobs a lot of additional permissions that they
-//    don't otherwise need (creating deployments, for instance). This represents
-//    an attack vector I'd rather not open.
-//
-// 2. If the build should fail, nothing guarantees the builder gets shut down.
-//    Over time, this could really clutter the cluster and starve us of
-//    resources.
-//
-// The workaround I have chosen is to launch a new builder using the default
-// docker-container driver. This runs inside a DinD sidecar. This has the
-// benefit of always being cleaned up when the job is observed complete by the
-// Brigade observer. The downside is that we're building an image inside a
-// Russian nesting doll of containers with an ephemeral cache. It is slow, but
-// it works.
-//
-// If and when the capability exists to use `docker buildx` with existing
-// builders, we can streamline all of this pretty significantly.
+/*BuildImageJob is a specialized job type for building and pushing multiarch
+ Docker images.
+ Note: This isn't the optimal way to do this. It's a workaround. These notes
+ are here so that as the situation improves, we can improve our approach.
+ The optimal way of doing this would involve no sidecars and wouldn't closely
+ resemble the "DinD" (Docker in Docker) pattern that we are accustomed to.
+ `docker buildx build` has full support for building images using remote
+  BuildKit instances. Such instances can use qemu to emulate other CPU
+  architectures. This permits us to build images for arm64 (aka arm64/v8, aka
+  aarch64), even though, as of this writing, we only have access to amd64 VMs.
+
+ In an ideal world, we'd have a pool of BuildKit instances up and running at
+ all times in our cluster and we'd somehow JOIN it and be off to the races.
+ Alas, as of this writing, this isn't supported yet. (BuildKit supports it,
+ but the `docker buildx` family of commands does not.) The best we can do is
+ use `docker buildx create` to create a brand new builder.
+
+ Tempting as it is to create a new builder using the Kubernetes driver (i.e.
+ `docker buildx create --driver kubernetes`), this comes with two problems:
+
+ 1. It would require giving our jobs a lot of additional permissions that they
+    don't otherwise need (creating deployments, for instance). This represents
+    an attack vector I'd rather not open.
+
+2. If the build should fail, nothing guarantees the builder gets shut down.
+    Over time, this could really clutter the cluster and starve us of
+    resources.
+
+ The workaround I have chosen is to launch a new builder using the default
+ docker-container driver. This runs inside a DinD sidecar. This has the
+ benefit of always being cleaned up when the job is observed complete by the
+ Brigade observer. The downside is that we're building an image inside a
+ Russian nesting doll of containers with an ephemeral cache. It is slow, but
+ it works.
+
+ If and when the capability exists to use `docker buildx` with existing
+ builders, we can streamline all of this pretty significantly.*/
 class BuildImageJob extends JobWithSource {
   constructor(image: string, event: Event, version?: string) {
     const secrets = event.project.secrets
@@ -182,8 +179,8 @@ class PublishSBOMJob extends MakeTargetJob {
   }
 }
 
-// A map of all jobs. When a ci:job_requested event wants to re-run a single
-// job, this allows us to easily find that job by name.
+/* A map of all jobs. When a ci:job_requested event wants to re-run a single
+ job, this allows us to easily find that job by name.*/
 const jobs: {[key: string]: (event: Event, version?: string) => Job } = {}
 
 // Basic tests:
@@ -455,8 +452,8 @@ const testIntegrationJob = (event: Event) => {
   job.primaryContainer.command = [ "sh" ]
   job.primaryContainer.arguments = [
     "-c",
-    // The sleep is a grace period after which we assume the DinD sidecar is
-    // probably up and running.
+    /* The sleep is a grace period after which we assume the DinD sidecar is
+     probably up and running.*/
     "sleep 20 && " +
       "docker info && " +
       "kind create cluster && " +
